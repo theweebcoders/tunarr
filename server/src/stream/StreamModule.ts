@@ -147,6 +147,10 @@ const StreamModule = new ContainerModule((bind) => {
           }
           case 'redirect':
             throw new Error('Impossible');
+          case 'segmented':
+            // Segmented programs should have been expanded by StreamProgramCalculator
+            // This shouldn't happen
+            throw new Error('Segmented programs should be expanded before streaming');
         }
       };
     })

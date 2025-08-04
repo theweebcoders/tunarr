@@ -5,6 +5,12 @@ import type {
   MusicArtistContentProgramSchema,
   TvSeasonContentProgramSchema,
   TvShowContentProgramSchema,
+  SegmentedProgramSchema,
+  SegmentSchema,
+  MediaSliceSegmentSchema,
+  MediaItemSegmentSchema,
+  FillerItemSegmentSchema,
+  CondensedSegmentedProgramSchema,
 } from './schemas/programmingSchema.js';
 import {
   type BaseProgramSchema,
@@ -58,6 +64,18 @@ export type FillerProgram = z.infer<typeof FillerProgramSchema>;
 
 export type RedirectProgram = z.infer<typeof RedirectProgramSchema>;
 
+export type SegmentedProgram = z.infer<typeof SegmentedProgramSchema>;
+
+export type CondensedSegmentedProgram = z.infer<typeof CondensedSegmentedProgramSchema>;
+
+export type Segment = z.infer<typeof SegmentSchema>;
+
+export type MediaSliceSegment = z.infer<typeof MediaSliceSegmentSchema>;
+
+export type MediaItemSegment = z.infer<typeof MediaItemSegmentSchema>;
+
+export type FillerItemSegment = z.infer<typeof FillerItemSegmentSchema>;
+
 export type ChannelProgram = z.infer<typeof ChannelProgramSchema>;
 
 function isProgramType<T extends BaseProgram>(type: T['type']) {
@@ -76,6 +94,8 @@ export const isCustomProgram = isProgramType<CustomProgram>('custom');
 
 export const isFillerProgram = isProgramType<FillerProgram>('filler');
 
+export const isSegmentedProgram = isProgramType<SegmentedProgram>('segmented');
+
 export function programUniqueId(program: BaseProgram): string | null {
   if (isContentProgram(program)) {
     return program.uniqueId;
@@ -87,6 +107,10 @@ export function programUniqueId(program: BaseProgram): string | null {
     return `custom.${program.customShowId}.${program.id}`;
   } else if (isFillerProgram(program)) {
     return `filler.${program.fillerListId}.${program.id}`;
+  } else if (isSegmentedProgram(program)) {
+    // Use the segmented program's ID instead of externalKey to avoid collisions
+    // when multiple segmented programs reference the same base content
+    return `segmented.${program.id}`;
   }
 
   return null;

@@ -1047,7 +1047,7 @@ export class TVGuideService {
             program,
             this.programConverter.lineupItemToChannelProgram(
               channel,
-              program.lineupItem,
+              program.lineupItem as LineupItem,
               allChannels,
               program.lineupItem.type === 'content'
                 ? materializedPrograms[program.lineupItem.id]
@@ -1108,6 +1108,11 @@ export class TVGuideService {
         ...redirect,
         type: 'redirect',
       }))
+      .with({ type: 'segmented' }, (segmented) => ({
+        ...baseItem,
+        ...segmented,
+        type: 'segmented',
+      }))
       .otherwise(() => ({
         ...baseItem,
         type: 'flex',
@@ -1119,7 +1124,7 @@ export class TVGuideService {
 
     if (
       guideItem.isPaused &&
-      (program.type === 'content' || program.type === 'flex')
+      (program.type === 'content' || program.type === 'flex' || program.type === 'segmented')
     ) {
       program.title += ' (paused)';
       program.isPaused = true;
@@ -1138,7 +1143,7 @@ export class TVGuideService {
       currentProgram,
       this.programConverter.lineupItemToChannelProgram(
         channel,
-        currentProgram.lineupItem,
+        currentProgram.lineupItem as LineupItem,
         allChannels,
         currentProgram.lineupItem.type === 'content'
           ? find(
@@ -1215,7 +1220,7 @@ export class TVGuideService {
 }
 
 function isProgramOffline(
-  program: Maybe<LineupItem>,
+  program: Maybe<DeepReadonly<LineupItem>>,
   channel: ChannelWithPrograms,
 ): boolean {
   return (

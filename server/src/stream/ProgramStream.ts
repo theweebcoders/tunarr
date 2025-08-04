@@ -158,6 +158,15 @@ export abstract class ProgramStream extends (events.EventEmitter as new () => Ty
   protected async getWatermark(): Promise<Maybe<Watermark>> {
     const channel = this.context.targetChannel;
 
+    if (!this.context.transcodeConfig) {
+      this.logger.error('No transcode config in context', {
+        channelId: channel.uuid,
+        channelName: channel.name,
+        contextKeys: Object.keys(this.context),
+      });
+      return;
+    }
+
     if (this.context.transcodeConfig.disableChannelOverlay) {
       return;
     }

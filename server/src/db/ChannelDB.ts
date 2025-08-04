@@ -4,6 +4,8 @@ import {
   type IChannelDB,
 } from '@/db/interfaces/IChannelDB.js';
 import type { IProgramDB } from '@/db/interfaces/IProgramDB.js';
+import { SegmentedProgramDB } from '@/db/SegmentedProgramDB.js';
+import type { ChannelWithTranscodeConfig } from '@/db/schema/derivedTypes.js';
 import { globalOptions } from '@/globals.js';
 import { CacheImageService } from '@/services/cacheImageService.js';
 import { ChannelNotFoundError } from '@/types/errors.js';
@@ -27,6 +29,7 @@ import {
   CondensedChannelProgramming,
   ContentProgram,
   SaveableChannel,
+  SegmentedProgram,
   Watermark,
 } from '@tunarr/types';
 import { UpdateChannelProgrammingRequest } from '@tunarr/types/api';
@@ -88,6 +91,7 @@ import {
   isContentItem,
   isOfflineItem,
   isRedirectItem,
+  isSegmentedItem,
   Lineup,
   LineupItem,
   LineupSchema,
@@ -232,6 +236,7 @@ export class ChannelDB implements IChannelDB {
     @inject(KEYS.WorkerPoolFactory)
     private workerPoolProvider: interfaces.AutoFactory<IWorkerPool>,
     @inject(FileSystemService) private fileSystemService: FileSystemService,
+    @inject(KEYS.SegmentedProgramDB) private segmentedProgramDB: SegmentedProgramDB,
   ) {}
 
   async channelExists(channelId: string) {
@@ -1015,10 +1020,11 @@ export class ChannelDB implements IChannelDB {
                 case 'index': {
                   const program = nth(programs, lineupItem.index);
                   if (program) {
-                    return convertFunc({
+                    const result = convertFunc({
                       ...program,
                       duration: lineupItem.duration ?? program.duration,
                     });
+                    return result;
                   }
                   return null;
                 }
@@ -1036,7 +1042,8 @@ export class ChannelDB implements IChannelDB {
         );
         if (req.append) {
           const existingLineup = await this.loadLineup(channel.uuid);
-          return [...existingLineup.items, ...newItems];
+          const combined = [...existingLineup.items, ...newItems];
+          return combined;
         } else {
           return newItems;
         }
@@ -1263,8 +1270,10 @@ export class ChannelDB implements IChannelDB {
 
   async loadChannelAndLineup(
     channelId: string,
-  ): Promise<{ channel: RawChannel; lineup: Lineup } | null> {
-    const channel = await this.getChannel(channelId);
+  ): Promise<{ channel: ChannelWithTranscodeConfig; lineup: Lineup } | null> {
+    const channel = await this.getChannelBuilder(channelId)
+      .withTranscodeConfig()
+      .executeTakeFirst();
     if (isNil(channel)) {
       return null;
     }
@@ -1347,6 +1356,7 @@ export class ChannelDB implements IChannelDB {
     }
 
     const contentItems = filter(pagedLineup, isContentItem);
+    const segmentedItems = filter(pagedLineup, isSegmentedItem);
 
     const directPrograms = await this.timer.timeAsync('direct', () =>
       this.db
@@ -1373,6 +1383,30 @@ export class ChannelDB implements IChannelDB {
     );
 
     const programsById = groupByUniqProp(directPrograms, 'uuid');
+
+    // Load segmented programs if any
+    const segmentedPrograms = segmentedItems.length > 0 
+      ? await this.timer.timeAsync('segmented programs', async () => {
+          const programs: Record<string, SegmentedProgram> = {};
+          for (const item of segmentedItems) {
+            const program = await this.segmentedProgramDB.getSegmentedProgram(item.id);
+            if (program) {
+              programs[item.id] = {
+                type: 'segmented',
+                id: program.uuid,
+                persisted: true,
+                duration: program.duration,
+                externalKey: program.external_key,
+                title: program.title,
+                segments: typeof program.segments === 'string' 
+                  ? JSON.parse(program.segments) 
+                  : program.segments,
+              };
+            }
+          }
+          return programs;
+        })
+      : {};
 
     const materializedPrograms = this.timer.timeSync('program convert', () => {
       const ret: Record<string, ContentProgram> = {};
@@ -1419,7 +1453,7 @@ export class ChannelDB implements IChannelDB {
       name: channel.name,
       number: channel.number,
       totalPrograms: len,
-      programs: omitBy(materializedPrograms, isNil),
+      programs: omitBy({ ...materializedPrograms, ...segmentedPrograms }, isNil),
       lineup: condensedLineup,
       startTimeOffsets: apiOffsets,
       schedule: lineup.schedule,
@@ -1522,6 +1556,7 @@ export class ChannelDB implements IChannelDB {
           }
           case 'offline':
           case 'redirect':
+          case 'segmented':
             return item;
         }
       });
@@ -1739,7 +1774,7 @@ export class ChannelDB implements IChannelDB {
             duration: item.durationMs,
           };
         }
-      } else if (item.customShowId) {
+      } else if (item.type === 'content' && item.customShowId) {
         p = {
           persisted: true,
           type: 'custom',
@@ -1747,6 +1782,17 @@ export class ChannelDB implements IChannelDB {
           duration: item.durationMs,
           index: customShowIndexes[item.customShowId][item.id] ?? -1,
           id: item.id,
+        };
+      } else if (isSegmentedItem(item)) {
+        // Handle segmented programs
+        p = {
+          persisted: true,
+          type: 'segmented',
+          id: item.id,
+          duration: item.durationMs,
+          externalKey: item.externalKey,
+          title: item.title,
+          segments: item.segments,
         };
       } else {
         if (dbProgramIds.has(item.id)) {
@@ -1840,6 +1886,21 @@ function channelProgramToLineupItemFunc(
         type: 'offline',
         durationMs: program.duration,
       }))
+      .with({ type: 'segmented' }, (program) => {
+        // For segmented programs, always use the provided ID
+        const id = program.id;
+        if (!id) {
+          throw new Error(`Segmented program missing ID: ${JSON.stringify(program)}`);
+        }
+        return {
+          type: 'segmented',
+          id,
+          durationMs: program.duration,
+          segments: program.segments,
+          title: program.title,
+          externalKey: program.externalKey,
+        };
+      })
       .exhaustive();
 
   //   custom: (program) => ({

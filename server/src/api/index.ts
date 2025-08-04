@@ -29,6 +29,7 @@ import { mediaSourceRouter } from './mediaSourceApi.js';
 import { metadataApiRouter } from './metadataApi.js';
 import { plexSettingsRouter } from './plexSettingsApi.js';
 import { programmingApi } from './programmingApi.js';
+import { segmentedProgramsApi } from './segmentedProgramsApi.js';
 import { sessionApiRouter } from './sessionApi.js';
 import { systemApiRouter } from './systemApi.js';
 import { tasksApiRouter } from './tasksApi.js';
@@ -52,6 +53,7 @@ export const apiRouter: RouterPluginAsyncCallback = async (fastify) => {
     .register(customShowsApiV2)
     .register(fillerListsApi)
     .register(programmingApi)
+    .register(segmentedProgramsApi)
     .register(debugApi)
     .register(metadataApiRouter)
     .register(mediaSourceRouter)

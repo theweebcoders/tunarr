@@ -32,6 +32,7 @@ import {
   RedirectItem,
   isOfflineItem,
   isRedirectItem,
+  isSegmentedItem,
 } from '../derived_types/Lineup.js';
 import { Channel } from '../schema/Channel.ts';
 import { DB } from '../schema/db.ts';
@@ -103,6 +104,18 @@ export class ProgramConverter {
         program,
         program.externalIds ?? [], // TODO fill in external IDs here
       );
+    } else if (isSegmentedItem(item)) {
+      // Return the segmented program directly as a ChannelProgram
+      // This handles segmented programs in the lineup
+      return {
+        type: 'segmented',
+        id: item.id,
+        persisted: true,
+        duration: item.durationMs,
+        externalKey: item.externalKey,
+        title: item.title,
+        segments: item.segments,
+      };
     }
 
     return null;

@@ -2,9 +2,8 @@ import { ChannelDB } from '@/db/ChannelDB.js';
 import { FillerDB } from '@/db/FillerListDB.js';
 import { ProgramDB } from '@/db/ProgramDB.js';
 import { ProgramExternalIdType } from '@/db/custom_types/ProgramExternalIdType.js';
-import { Channel } from '@/db/schema/Channel.js';
 import { MediaSourceType } from '@/db/schema/MediaSource.js';
-import type { ProgramWithRelations as RawProgramEntity } from '@/db/schema/derivedTypes.js';
+import type { ChannelWithTranscodeConfig, ProgramWithRelations as RawProgramEntity } from '@/db/schema/derivedTypes.js';
 import { FillerPicker } from '@/services/FillerPicker.js';
 import { KEYS } from '@/types/inject.js';
 import { Result } from '@/types/result.js';
@@ -12,6 +11,7 @@ import { Maybe, Nullable } from '@/types/util.js';
 import { binarySearchRange } from '@/util/binarySearch.js';
 import { type Logger } from '@/util/logging/LoggerFactory.js';
 import constants from '@tunarr/shared/constants';
+import type { MediaSliceSegment, MediaItemSegment } from '@tunarr/types';
 import dayjs from 'dayjs';
 import { inject, injectable } from 'inversify';
 import { first, isEmpty, isNil, isNull, isUndefined, nth } from 'lodash-es';
@@ -24,6 +24,7 @@ import {
   RedirectStreamLineupItem,
   StreamLineupItem,
   createOfflineStreamLineupItem,
+  isSegmentedLineupItem,
 } from '../db/derived_types/StreamLineup.ts';
 import {
   isNonEmptyString,
@@ -69,8 +70,8 @@ export type CurrentLineupItemResult = {
   lineupItem: StreamLineupItem;
   // Either the source channel or the target channel
   // if the current program is a redirect
-  channelContext: Channel;
-  sourceChannel: Channel;
+  channelContext: ChannelWithTranscodeConfig;
+  sourceChannel: ChannelWithTranscodeConfig;
 };
 
 @injectable()
@@ -87,7 +88,10 @@ export class StreamProgramCalculator {
     req: GetCurrentLineupItemRequest,
   ): Promise<Result<CurrentLineupItemResult>> {
     const startTime = req.startTime;
-    const channel = await this.channelDB.getChannel(req.channelId);
+    const channel = await this.channelDB
+      .getChannelBuilder(req.channelId)
+      .withTranscodeConfig()
+      .executeTakeFirst();
 
     if (isNil(channel)) {
       return Result.failure(
@@ -109,7 +113,7 @@ export class StreamProgramCalculator {
     // }
 
     let lineupItem: Maybe<StreamLineupItem>;
-    let channelContext: Channel = channel;
+    let channelContext: ChannelWithTranscodeConfig = channel;
     const redirectChannels: string[] = [];
     const upperBounds: number[] = [];
 
@@ -450,6 +454,21 @@ export class StreamProgramCalculator {
         };
         break;
       }
+
+      case 'segmented': {
+        // For now, we'll treat segmented programs as a single program
+        // The actual segment expansion will happen later in createLineupItem
+        program = {
+          duration: lineupItem.durationMs,
+          type: 'segmented',
+          id: lineupItem.id,
+          externalKey: lineupItem.externalKey,
+          title: lineupItem.title,
+          segments: lineupItem.segments,
+          programBeginMs: timestamp - timeElapsed,
+        };
+        break;
+      }
     }
 
     return {
@@ -467,7 +486,7 @@ export class StreamProgramCalculator {
   async createLineupItem(
     activeProgram: StrictExclude<EnrichedLineupItem, RedirectStreamLineupItem>,
     timeElapsed: number,
-    channel: Channel,
+    channel: ChannelWithTranscodeConfig,
   ): Promise<StreamLineupItem> {
     // Start time of a file is never consistent unless 0. Run time of an episode can vary.
     // When within 30 seconds of start time, just make the time 0 to smooth things out
@@ -486,6 +505,299 @@ export class StreamProgramCalculator {
         beginningOffset,
         programBeginMs: activeProgram.programBeginMs,
       };
+    }
+
+    // Handle segmented programs by determining which segment is active
+    if (isSegmentedLineupItem(activeProgram)) {
+      let segmentOffset = 0;
+      let activeSegmentIndex = -1;
+      let offsetWithinSegment = timeElapsed;
+
+      this.logger.debug(
+        'Processing segmented program %s with %d segments, timeElapsed=%dms',
+        activeProgram.id,
+        activeProgram.segments.length,
+        timeElapsed
+      );
+
+      // Find which segment contains the current playback position
+      for (let i = 0; i < activeProgram.segments.length; i++) {
+        const segment = activeProgram.segments[i];
+        if (offsetWithinSegment < segment.duration) {
+          activeSegmentIndex = i;
+          break;
+        }
+        segmentOffset += segment.duration;
+        offsetWithinSegment -= segment.duration;
+      }
+
+      if (activeSegmentIndex === -1) {
+        // We've passed all segments, return offline
+        this.logger.debug(
+          'Segmented program %s completed - all segments played',
+          activeProgram.id
+        );
+        return createOfflineStreamLineupItem(60000, activeProgram.programBeginMs);
+      }
+
+      const activeSegment = activeProgram.segments[activeSegmentIndex];
+      
+      this.logger.debug(
+        'Active segment: index=%d, type=%s, offsetWithinSegment=%dms, segmentStart=%dms',
+        activeSegmentIndex,
+        activeSegment.type,
+        offsetWithinSegment,
+        segmentOffset
+      );
+      
+      // Handle each segment type
+      switch (activeSegment.type) {
+        case 'media-slice': {
+          // For media slices, we need to resolve the external key and add the slice's start offset
+          // External keys are in format: "sourceType|serverId|itemId"
+          const keyParts = activeSegment.externalKey.split('|');
+          
+          if (keyParts.length < 3) {
+            this.logger.error(
+              'Invalid external key format for media-slice segment: %s. Expected format: sourceType|serverId|itemId',
+              activeSegment.externalKey
+            );
+            break;
+          }
+          
+          const [sourceType, serverId, ...remainingParts] = keyParts;
+          const externalKey = remainingParts.join('|'); // Rejoin in case the item ID contains |
+          
+          if (!sourceType || !serverId || !externalKey) {
+            this.logger.error(
+              'External key parts are empty. sourceType=%s, serverId=%s, externalKey=%s',
+              sourceType,
+              serverId,
+              externalKey
+            );
+            break;
+          }
+          
+          const lookupResults = await this.programDB.lookupByExternalIds(
+            new Set([[sourceType, serverId, externalKey]])
+          );
+          
+          const referencedProgram = Object.values(lookupResults)[0];
+          
+          if (referencedProgram) {
+            // For ContentProgram, we need to extract the media source info
+            // from the external key format: "sourceType|serverId|itemId"
+            const mediaSourceType = match(sourceType)
+              .with('plex', () => MediaSourceType.Plex)
+              .with('jellyfin', () => MediaSourceType.Jellyfin)
+              .with('emby', () => MediaSourceType.Emby)
+              .otherwise(() => null);
+
+            if (mediaSourceType) {
+              return {
+                type: 'program',
+                title: activeProgram.title,
+                externalSource: mediaSourceType,
+                plexFilePath: referencedProgram.serverFilePath,
+                externalKey: externalKey,
+                filePath: undefined, // ContentProgram doesn't have directFilePath
+                externalSourceId: serverId,
+                duration: activeSegment.stop - activeSegment.start,
+                programId: referencedProgram.id,
+                programType: referencedProgram.subtype || 'episode',
+                startOffset: activeSegment.start + offsetWithinSegment,
+                streamDuration: activeSegment.duration - offsetWithinSegment,
+                beginningOffset: activeSegment.start,
+                programBeginMs: activeProgram.programBeginMs + segmentOffset,
+              };
+            } else {
+              this.logger.error(
+                'Unknown media source type: %s for segment %s',
+                sourceType,
+                activeSegment.externalKey
+              );
+            }
+          } else {
+            this.logger.error({
+              msg: 'Failed to resolve media-slice segment',
+              segmentedProgramId: activeProgram.id,
+              segmentIndex: activeSegmentIndex,
+              segmentType: 'media-slice',
+              externalKey: activeSegment.externalKey,
+              programTitle: activeProgram.title,
+            });
+          }
+          break;
+        }
+
+        case 'media-item': {
+          // For media items, resolve the external key for the referenced content
+          // External keys are in format: "sourceType|serverId|itemId"
+          const keyParts = activeSegment.externalKey.split('|');
+          
+          if (keyParts.length < 3) {
+            this.logger.error(
+              'Invalid external key format for media-item segment: %s. Expected format: sourceType|serverId|itemId',
+              activeSegment.externalKey
+            );
+            break;
+          }
+          
+          const [sourceType, serverId, ...remainingParts] = keyParts;
+          const externalKey = remainingParts.join('|'); // Rejoin in case the item ID contains |
+          
+          if (!sourceType || !serverId || !externalKey) {
+            this.logger.error(
+              'External key parts are empty. sourceType=%s, serverId=%s, externalKey=%s',
+              sourceType,
+              serverId,
+              externalKey
+            );
+            break;
+          }
+          
+          const lookupResults = await this.programDB.lookupByExternalIds(
+            new Set([[sourceType, serverId, externalKey]])
+          );
+          
+          const referencedProgram = Object.values(lookupResults)[0];
+
+          if (referencedProgram) {
+            // For ContentProgram, we need to extract the media source info
+            // from the external key format: "sourceType|serverId|itemId"
+            const mediaSourceType = match(sourceType)
+              .with('plex', () => MediaSourceType.Plex)
+              .with('jellyfin', () => MediaSourceType.Jellyfin)
+              .with('emby', () => MediaSourceType.Emby)
+              .otherwise(() => null);
+
+            if (mediaSourceType) {
+              return {
+                type: 'program',
+                title: referencedProgram.title,
+                externalSource: mediaSourceType,
+                plexFilePath: referencedProgram.serverFilePath,
+                externalKey: externalKey,
+                filePath: undefined, // ContentProgram doesn't have directFilePath
+                externalSourceId: serverId,
+                duration: referencedProgram.duration,
+                programId: referencedProgram.id,
+                programType: referencedProgram.subtype || 'episode',
+                startOffset: offsetWithinSegment,
+                streamDuration: activeSegment.duration - offsetWithinSegment,
+                beginningOffset: 0,
+                programBeginMs: activeProgram.programBeginMs + segmentOffset,
+                };
+              } else {
+                this.logger.error(
+                  'Unknown media source type: %s for segment %s',
+                  sourceType,
+                  activeSegment.externalKey
+                );
+              }
+          } else {
+            this.logger.error({
+              msg: 'Failed to resolve media-item segment',
+              segmentedProgramId: activeProgram.id,
+              segmentIndex: activeSegmentIndex,
+              segmentType: 'media-item',
+              externalKey: activeSegment.externalKey,
+              programTitle: activeProgram.title,
+            });
+          }
+          break;
+        }
+
+        case 'filler-item': {
+          // Use the existing filler picker logic
+          const fillerPrograms = await this.fillerDB.getFillersFromChannel(
+            channel.uuid,
+          );
+
+          const randomResult = new FillerPicker().pickFiller(
+            channel,
+            fillerPrograms,
+            activeSegment.duration - offsetWithinSegment,
+          );
+
+          if (randomResult.filler) {
+            const filler = randomResult.filler;
+            const externalInfos = await this.programDB.getProgramExternalIds(
+              filler.uuid,
+              [ProgramExternalIdType.PLEX, ProgramExternalIdType.JELLYFIN],
+            );
+
+            if (!isEmpty(externalInfos)) {
+              const externalInfo = first(externalInfos)!;
+              return {
+                type: 'commercial',
+                title: filler.title,
+                filePath: nullToUndefined(externalInfo.directFilePath),
+                externalKey: externalInfo.externalKey,
+                externalSource: match(externalInfo.sourceType)
+                  .with(ProgramExternalIdType.PLEX, () => MediaSourceType.Plex)
+                  .with(ProgramExternalIdType.JELLYFIN, () => MediaSourceType.Jellyfin)
+                  .with(ProgramExternalIdType.EMBY, () => MediaSourceType.Emby)
+                  .otherwise(() => MediaSourceType.Plex),
+                startOffset: 0,
+                streamDuration: Math.min(
+                  filler.duration,
+                  activeSegment.duration - offsetWithinSegment,
+                ),
+                duration: filler.duration,
+                programId: filler.uuid,
+                beginningOffset: 0,
+                externalSourceId: externalInfo.externalSourceId!,
+                plexFilePath: nullToUndefined(externalInfo.externalFilePath),
+                programType: filler.type,
+                programBeginMs: activeProgram.programBeginMs + segmentOffset,
+                fillerId: filler.uuid,
+              } satisfies CommercialStreamLineupItem;
+            } else {
+              this.logger.error({
+                msg: 'Failed to get external IDs for filler program',
+                segmentedProgramId: activeProgram.id,
+                segmentIndex: activeSegmentIndex,
+                segmentType: 'filler-item',
+                fillerProgramId: filler.uuid,
+                programTitle: activeProgram.title,
+              });
+            }
+          } else {
+            this.logger.warn({
+              msg: 'FillerPicker returned no suitable content for filler-item segment',
+              segmentedProgramId: activeProgram.id,
+              segmentIndex: activeSegmentIndex,
+              segmentType: 'filler-item',
+              requestedDuration: activeSegment.duration - offsetWithinSegment,
+              fillerListId: activeSegment.fillerListId,
+              programTitle: activeProgram.title,
+            });
+          }
+          break;
+        }
+      }
+
+      // If we couldn't resolve the segment, return offline with segment timing preserved
+      const offlineItem = createOfflineStreamLineupItem(
+        activeSegment.duration - offsetWithinSegment,
+        activeProgram.programBeginMs + segmentOffset,
+      );
+      
+      // Add detailed context about which segment failed
+      this.logger.warn({
+        msg: 'Falling back to offline for failed segment',
+        segmentedProgramId: activeProgram.id,
+        programTitle: activeProgram.title,
+        segmentIndex: activeSegmentIndex,
+        segmentType: activeSegment.type,
+        segmentDetails: activeSegment.type === 'filler-item' 
+          ? { fillerListId: activeSegment.fillerListId }
+          : { externalKey: (activeSegment as MediaSliceSegment | MediaItemSegment).externalKey },
+        remainingDuration: activeSegment.duration - offsetWithinSegment,
+      });
+      
+      return offlineItem;
     }
 
     if (activeProgram.type === 'offline') {

@@ -188,7 +188,7 @@ class ScheduleContext {
     const condensed =
       program.type === 'content'
         ? (this.#condensedProgramsById[program.uniqueId] ?? condense(program))
-        : program;
+        : condense(program);
     this.#workingLineup.push(condensed);
   }
 

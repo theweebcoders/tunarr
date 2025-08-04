@@ -5,6 +5,7 @@ import {
   CustomProgramSchema,
   FlexProgramSchema,
   RedirectProgramSchema,
+  SegmentedProgramSchema,
 } from './programmingSchema.js';
 
 // Guide programs are just like regular programs, but they have a start
@@ -35,11 +36,17 @@ export const FlexGuideProgramSchema = FlexProgramSchema.merge(
   title: z.string(),
 });
 
+// Segmented programs in guide
+export const SegmentedGuideProgramSchema = SegmentedProgramSchema.merge(
+  BaseGuideProgramSchema,
+);
+
 export const TvGuideProgramSchema = z.discriminatedUnion('type', [
   ContentGuideProgramSchema,
   CustomGuideProgramSchema,
   RedirectGuideProgramSchema,
   FlexGuideProgramSchema,
+  SegmentedGuideProgramSchema,
 ]);
 
 export const ChannelLineupSchema = z.object({

@@ -125,14 +125,18 @@ export class ChannelCache {
       }
     }
 
-    if (isDefined(lineupItem.startOffset)) {
-      lineupItem.startOffset += timeSinceRecorded;
-    }
-    if (!isNil(lineupItem.streamDuration)) {
-      lineupItem.streamDuration -= timeSinceRecorded;
-      if (lineupItem.streamDuration < SLACK) {
-        //let's not waste time playing some loose seconds
-        return;
+    // Adjust offsets for all program types except segmented programs
+    // Segmented programs handle their own timing internally based on segment boundaries
+    if (lineupItem.type !== 'segmented') {
+      if (isDefined(lineupItem.startOffset)) {
+        lineupItem.startOffset += timeSinceRecorded;
+      }
+      if (!isNil(lineupItem.streamDuration)) {
+        lineupItem.streamDuration -= timeSinceRecorded;
+        if (lineupItem.streamDuration < SLACK) {
+          //let's not waste time playing some loose seconds
+          return;
+        }
       }
     }
     if ((lineupItem.startOffset ?? 0) + SLACK > lineupItem.duration) {
@@ -167,6 +171,12 @@ export class ChannelCache {
         this.getKey(channelId, lineupItem.fillerId),
         t0 + remaining,
       );
+    }
+
+    if (lineupItem.type === 'segmented') {
+      // Record the segmented program play time
+      const key = this.getKey(channelId, lineupItem.id);
+      await persistentChannelCache.setProgramPlayTime(key, t0 + remaining);
     }
   }
 

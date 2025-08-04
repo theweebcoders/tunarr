@@ -14,6 +14,7 @@ import type { ProgramTable } from './Program.ts';
 import type { ProgramExternalIdTable } from './ProgramExternalId.ts';
 import type { ProgramGroupingTable } from './ProgramGrouping.ts';
 import type { ProgramGroupingExternalIdTable } from './ProgramGroupingExternalId.ts';
+import type { SegmentedProgramTable } from './SegmentedProgram.ts';
 import type {
   ChannelSubtitlePreferencesTable,
   CustomShowSubtitlePreferencesTable,
@@ -38,6 +39,7 @@ export interface DB {
   programExternalId: ProgramExternalIdTable;
   programGrouping: ProgramGroupingTable;
   programGroupingExternalId: ProgramGroupingExternalIdTable;
+  segmented_program: SegmentedProgramTable;
   transcodeConfig: TrannscodeConfigTable;
 
   // Legacy migration table

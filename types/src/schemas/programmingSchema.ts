@@ -66,6 +66,7 @@ export const BaseProgramSchema = z.object({
     z.literal('content'),
     z.literal('custom'),
     z.literal('filler'),
+    z.literal('segmented'),
   ]),
   persisted: z.boolean(),
   duration: z.number(),
@@ -259,12 +260,89 @@ export const FillerProgramSchema = BaseProgramSchema.extend({
   program: ContentProgramSchema.optional(),
 });
 
+// Segment schemas for segmented programs
+
+/**
+ * Media slice segment - represents a portion of a media file
+ * @property externalKey - Format: "sourceType|serverId|itemId"
+ *   - sourceType: 'plex', 'jellyfin', or 'emby'
+ *   - serverId: The media server UUID
+ *   - itemId: The media item ID (may contain | characters)
+ * @property start - Start time in milliseconds within the media file
+ * @property stop - Stop time in milliseconds within the media file
+ * @property duration - Duration in milliseconds (must equal stop - start)
+ */
+export const MediaSliceSegmentSchema = z.object({
+  type: z.literal('media-slice'),
+  externalKey: z.string(),
+  title: z.string().optional(),
+  start: z.number().min(0),
+  stop: z.number().min(0),
+  duration: z.number().min(0),
+});
+
+/**
+ * Media item segment - represents a complete media file
+ * @property externalKey - Format: "sourceType|serverId|itemId"
+ *   - sourceType: 'plex', 'jellyfin', or 'emby'
+ *   - serverId: The media server UUID
+ *   - itemId: The media item ID (may contain | characters)
+ * @property duration - Duration in milliseconds to play (may be less than full file duration)
+ */
+export const MediaItemSegmentSchema = z.object({
+  type: z.literal('media-item'),
+  externalKey: z.string(),
+  title: z.string().optional(),
+  duration: z.number().min(0),
+});
+
+/**
+ * Filler item segment - represents content from a filler list
+ * @property fillerListId - UUID of the filler list to select content from
+ * @property duration - Duration in milliseconds to fill
+ */
+export const FillerItemSegmentSchema = z.object({
+  type: z.literal('filler-item'),
+  fillerListId: z.string(),
+  duration: z.number().min(0),
+});
+
+export const SegmentSchema = z.discriminatedUnion('type', [
+  MediaSliceSegmentSchema,
+  MediaItemSegmentSchema,
+  FillerItemSegmentSchema,
+]);
+
+/**
+ * Segmented program - represents multiple media segments as a single program entry
+ * @property externalKey - Primary content reference (format: "sourceType|serverId|itemId")
+ * @property title - Display title for the program
+ * @property segments - Array of segments to play in sequence
+ * @property duration - Total duration (must equal sum of all segment durations)
+ */
+export const SegmentedProgramSchema = BaseProgramSchema.extend({
+  type: z.literal('segmented'),
+  id: z.string().optional(), // ID for persisted segmented programs
+  externalKey: z.string(), // Primary content reference
+  title: z.string(),
+  segments: z.array(SegmentSchema),
+});
+
+export const CondensedSegmentedProgramSchema = BaseProgramSchema.extend({
+  type: z.literal('segmented'),
+  id: z.string(),
+  externalKey: z.string(),
+  title: z.string(),
+  segments: z.array(SegmentSchema),
+});
+
 export const ChannelProgramSchema = z.discriminatedUnion('type', [
   ContentProgramSchema,
   CustomProgramSchema,
   RedirectProgramSchema,
   FlexProgramSchema,
   FillerProgramSchema,
+  SegmentedProgramSchema,
 ]);
 
 const startTimeOffsets = z.array(z.number());
@@ -284,6 +362,7 @@ export const CondensedChannelProgramSchema = z.discriminatedUnion('type', [
   CondensedFillerProgramSchema,
   RedirectProgramSchema,
   FlexProgramSchema,
+  CondensedSegmentedProgramSchema,
 ]);
 
 export const CondensedChannelProgrammingSchema = z.object({
@@ -291,7 +370,7 @@ export const CondensedChannelProgrammingSchema = z.object({
   name: z.string().optional(),
   number: z.number().optional(),
   totalPrograms: z.number(),
-  programs: z.record(z.string(), ContentProgramSchema),
+  programs: z.record(z.string(), z.union([ContentProgramSchema, CondensedSegmentedProgramSchema])),
   lineup: z.array(CondensedChannelProgramSchema),
   startTimeOffsets,
   schedule: LineupScheduleSchema.optional(),

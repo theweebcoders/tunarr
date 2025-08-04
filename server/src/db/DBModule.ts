@@ -1,5 +1,6 @@
 import { ChannelDB } from '@/db/ChannelDB.js';
 import { ProgramDB } from '@/db/ProgramDB.js';
+import { SegmentedProgramDB } from '@/db/SegmentedProgramDB.js';
 import type { IChannelDB } from '@/db/interfaces/IChannelDB.js';
 import type { IProgramDB } from '@/db/interfaces/IProgramDB.js';
 import { KEYS } from '@/types/inject.js';
@@ -12,6 +13,8 @@ import type { DB } from './schema/db.ts';
 const DBModule = new ContainerModule((bind) => {
   bind<IProgramDB>(KEYS.ProgramDB).to(ProgramDB).inSingletonScope();
   bind<IChannelDB>(KEYS.ChannelDB).to(ChannelDB).inSingletonScope();
+  bind<SegmentedProgramDB>(SegmentedProgramDB).toSelf().inSingletonScope();
+  bind<SegmentedProgramDB>(KEYS.SegmentedProgramDB).toService(SegmentedProgramDB);
   bind<DBAccess>(DBAccess).toSelf().inSingletonScope();
   bind<Kysely<DB>>(KEYS.Database)
     .toDynamicValue((ctx) => ctx.container.get(DBAccess).db!)

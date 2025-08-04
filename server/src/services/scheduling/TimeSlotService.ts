@@ -270,7 +270,7 @@ export async function scheduleTimeSlots(
       const condensed =
         program.type === 'content'
           ? (condensedProgramsById[program.uniqueId] ?? condense(program))
-          : program;
+          : condense(program);
       channelPrograms.push(condensed);
       advanceIterator(currSlot, contentProgramIteratorsById);
       timeCursor = timeCursor.add(program.duration);
@@ -320,7 +320,7 @@ export async function scheduleTimeSlots(
       const condensed =
         program.type === 'content'
           ? (condensedProgramsById[program.uniqueId] ?? condense(program))
-          : program;
+          : condense(program);
       channelPrograms.push(condensed);
       timeCursor = timeCursor.add(program.duration);
       pushFlex(dayjs.duration(padMs));

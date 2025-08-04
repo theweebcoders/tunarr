@@ -191,6 +191,7 @@ export class TimeSlotSchedulerService {
         switch (program.type) {
           case 'redirect':
           case 'flex':
+          case 'segmented':
             return program;
           case 'content':
             return program.id ? result.programs[program.id] : null;

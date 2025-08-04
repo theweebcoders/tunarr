@@ -11,6 +11,7 @@ import { isUndefined } from 'lodash-es';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { CustomShowDB } from './db/CustomShowDB.ts';
 import { FillerDB } from './db/FillerListDB.ts';
+import { SegmentedProgramDB } from './db/SegmentedProgramDB.ts';
 import { TranscodeConfigDB } from './db/TranscodeConfigDB.ts';
 import { ProgramConverter } from './db/converters/ProgramConverter.ts';
 import { MediaSourceDB } from './db/mediaSourceDB.ts';
@@ -49,6 +50,7 @@ export class ServerContext {
   @inject(MediaSourceDB) public mediaSourceDB: MediaSourceDB;
   @inject(KEYS.ProgramDB) public programDB: IProgramDB;
   @inject(TranscodeConfigDB) public transcodeConfigDB: TranscodeConfigDB;
+  @inject(SegmentedProgramDB) public segmentedProgramDB: SegmentedProgramDB;
 
   @inject(SessionManager) public readonly sessionManager: SessionManager;
   @inject(HealthCheckService)

@@ -3,7 +3,7 @@
 // active streaming session
 
 import { MediaSourceType } from '@/db/schema/MediaSource.js';
-import { ContentProgramTypeSchema } from '@tunarr/types/schemas';
+import { ContentProgramTypeSchema, SegmentSchema } from '@tunarr/types/schemas';
 import type { StrictOmit } from 'ts-essentials';
 import { z } from 'zod/v4';
 import type { EmbyT, JellyfinT } from '../../types/internal.ts';
@@ -46,6 +46,12 @@ export function isProgramLineupItem(
   item: StreamLineupItem,
 ): item is ProgramStreamLineupItem {
   return item.type === 'program';
+}
+
+export function isSegmentedLineupItem(
+  item: StreamLineupItem,
+): item is SegmentedStreamLineupItem {
+  return item.type === 'segmented';
 }
 
 export function isContentBackedLineupItem(
@@ -176,6 +182,18 @@ export const ErrorStreamLineupItemSchema = baseStreamLineupItemSchema.extend({
   error: z.instanceof(Error).or(z.string()).or(z.boolean()),
 });
 
+export const SegmentedStreamLineupItemSchema = baseStreamLineupItemSchema.extend({
+  type: z.literal('segmented'),
+  id: z.string(),
+  externalKey: z.string(),
+  title: z.string(),
+  segments: z.array(SegmentSchema),
+});
+
+export type SegmentedStreamLineupItem = z.infer<
+  typeof SegmentedStreamLineupItemSchema
+>;
+
 export type RedirectStreamLineupItem = z.infer<
   typeof RedirectStreamLineupItemSchema
 >;
@@ -187,6 +205,7 @@ export const StreamLineupItemSchema = z.discriminatedUnion('type', [
   OfflineStreamLineupItemSchema,
   RedirectStreamLineupItemSchema,
   ErrorStreamLineupItemSchema,
+  SegmentedStreamLineupItemSchema,
 ]);
 
 export type StreamLineupItem = z.infer<typeof StreamLineupItemSchema>;
@@ -202,6 +221,7 @@ export const EnrichedLineupItemSchema = z.discriminatedUnion('type', [
   OfflineStreamLineupItemSchema,
   RedirectStreamLineupItemSchema,
   ErrorStreamLineupItemSchema,
+  SegmentedStreamLineupItemSchema,
 ]);
 
 export type EnrichedLineupItem = z.infer<typeof EnrichedLineupItemSchema>;

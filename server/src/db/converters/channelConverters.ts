@@ -53,7 +53,9 @@ export const dbChannelToApiChannel = ({
     onDemand: {
       enabled: isDefined(lineup.onDemandConfig),
     },
-    programCount: filter(lineup.items, { type: 'content' }).length,
+    programCount: filter(lineup.items, (item) => 
+      item.type === 'content' || item.type === 'segmented'
+    ).length,
     streamMode: channel.streamMode,
     transcodeConfigId: channel.transcodeConfigId,
     subtitlesEnabled: numberToBoolean(channel.subtitlesEnabled),

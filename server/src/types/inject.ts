@@ -18,6 +18,7 @@ const KEYS = {
   ChannelDB: Symbol.for('ChannelDB'),
   ProgramDB: Symbol.for('ProgramDB'),
   SettingsDB: Symbol.for('SettingsDB'),
+  SegmentedProgramDB: Symbol.for('SegmentedProgramDB'),
   MediaSourceApiFactory: Symbol.for('MediaSourceApiFactory'),
   TimeSlotSchedulerServiceFactory: Symbol.for(
     'TimeSlotSchedulerServiceFactory',

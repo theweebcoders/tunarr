@@ -19,6 +19,8 @@ import {
   CustomProgramSchema,
   MusicAlbumContentProgramSchema,
   TvSeasonContentProgramSchema,
+  SegmentSchema,
+  SegmentedProgramSchema,
 } from '../schemas/programmingSchema.js';
 import {
   BackupSettingsSchema,
@@ -370,3 +372,51 @@ export const ProgramChildrenResult = PagedResult(
       }),
     ),
 );
+
+// Segmented Programs API schemas
+export const CreateSegmentedProgramRequestSchema = z.object({
+  externalKey: z.string(),
+  title: z.string(),
+  duration: z.number().positive(),
+  segments: z.array(SegmentSchema),
+});
+
+export type CreateSegmentedProgramRequest = z.infer<
+  typeof CreateSegmentedProgramRequestSchema
+>;
+
+export const SegmentedProgramResponseSchema = SegmentedProgramSchema.extend({
+  id: z.string(),
+});
+
+export type SegmentedProgramResponse = z.infer<
+  typeof SegmentedProgramResponseSchema
+>;
+
+export const SegmentedProgramValidationResponseSchema = z.object({
+  valid: z.boolean(),
+  errors: z.array(z.string()),
+});
+
+export type SegmentedProgramValidationResponse = z.infer<
+  typeof SegmentedProgramValidationResponseSchema
+>;
+
+export const CalculateSegmentOffsetsRequestSchema = z.object({
+  segments: z.array(SegmentSchema),
+  viewerJoinTime: z.number().min(0),
+});
+
+export type CalculateSegmentOffsetsRequest = z.infer<
+  typeof CalculateSegmentOffsetsRequestSchema
+>;
+
+export const CalculateSegmentOffsetsResponseSchema = z.object({
+  activeSegmentIndex: z.number(),
+  offsetWithinSegment: z.number(),
+  segmentStartTime: z.number(),
+});
+
+export type CalculateSegmentOffsetsResponse = z.infer<
+  typeof CalculateSegmentOffsetsResponseSchema
+>;

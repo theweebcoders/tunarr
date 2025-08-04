@@ -6,6 +6,7 @@ import {
   type ChannelProgram,
   type CondensedChannelProgram,
   type CondensedContentProgram,
+  type CondensedSegmentedProgram,
   type ContentProgram,
   type CustomProgram,
   type FillerProgram,
@@ -63,7 +64,8 @@ export type SlotId =
   | `custom-show.${string}`
   | `filler.${string}`
   | `redirect.${string}`
-  | `flex`;
+  | `flex`
+  | `segmented.${string}`;
 
 export const getSlotIdForProgram = (
   program: CondensedChannelProgram,
@@ -98,6 +100,8 @@ export const getSlotIdForProgram = (
       return `redirect.${program.channel}`;
     case 'flex':
       return 'flex';
+    case 'segmented':
+      return `segmented.${program.id || program.externalKey}`;
   }
 };
 
@@ -157,6 +161,11 @@ export function createProgramMap(programs: ChannelProgram[]): ProgramMapping {
         }
         case 'flex':
           break;
+        case 'segmented': {
+          // Segmented programs don't fit into the slot scheduling system
+          // They are handled specially during lineup creation
+          break;
+        }
       }
 
       return acc;
@@ -352,7 +361,6 @@ function getContentProgramIterator(
       );
     case 'shuffle':
       return new ProgramShuffler(uniquePrograms, random);
-      break;
     case 'ordered_shuffle':
       return new ProgramChunkedShuffle(
         uniquePrograms,
@@ -442,6 +450,16 @@ export function condense(program: ChannelProgram): CondensedChannelProgram {
     case 'redirect':
     case 'flex':
       return program;
+    case 'segmented':
+      return {
+        id: program.id ?? `segmented-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+        type: program.type,
+        externalKey: program.externalKey,
+        title: program.title,
+        segments: program.segments,
+        duration: program.duration,
+        persisted: program.persisted,
+      } satisfies CondensedSegmentedProgram;
   }
 }
 

@@ -3,6 +3,7 @@ import {
   LineupScheduleSchema,
   SchedulingOperationSchema,
 } from '@tunarr/types/api';
+import { SegmentSchema } from '@tunarr/types/schemas';
 import { first } from 'lodash-es';
 import { z } from 'zod/v4';
 
@@ -42,10 +43,23 @@ export const RedirectLineupItemSchema = z
   .merge(BaseLineupItemSchema);
 export type RedirectItem = z.infer<typeof RedirectLineupItemSchema>;
 
+export const SegmentedLineupItemSchema = z
+  .object({
+    type: z.literal('segmented'),
+    id: z.string().min(1),
+    segments: z.array(SegmentSchema),
+    title: z.string(),
+    externalKey: z.string(),
+  })
+  .merge(BaseLineupItemSchema);
+
+export type SegmentedItem = z.infer<typeof SegmentedLineupItemSchema>;
+
 export const LineupItemSchema = z.discriminatedUnion('type', [
   ContentLineupItemSchema,
   OfflineLineupItemSchema,
   RedirectLineupItemSchema,
+  SegmentedLineupItemSchema,
 ]);
 
 export type LineupItem = z.infer<typeof LineupItemSchema>;
@@ -59,6 +73,7 @@ function isItemOfType<T extends LineupItem>(discrim: string) {
 export const isContentItem = isItemOfType<ContentItem>('content');
 export const isOfflineItem = isItemOfType<OfflineItem>('offline');
 export const isRedirectItem = isItemOfType<RedirectItem>('redirect');
+export const isSegmentedItem = isItemOfType<SegmentedItem>('segmented');
 
 const PendingProgramSchema = ContentLineupItemSchema.extend({
   updaterId: z.string(),

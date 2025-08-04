@@ -5,6 +5,7 @@ import type {
   CustomGuideProgramSchema,
   FlexGuideProgramSchema,
   RedirectGuideProgramSchema,
+  SegmentedGuideProgramSchema,
   TvGuideProgramSchema,
 } from './schemas/guideApiSchemas.js';
 
@@ -15,6 +16,8 @@ export type FlexGuideProgram = z.infer<typeof FlexGuideProgramSchema>;
 export type CustomGuideProgram = z.infer<typeof CustomGuideProgramSchema>;
 
 export type RedirectGuideProgram = z.infer<typeof RedirectGuideProgramSchema>;
+
+export type SegmentedGuideProgram = z.infer<typeof SegmentedGuideProgramSchema>;
 
 export type TvGuideProgram = z.infer<typeof TvGuideProgramSchema>;
 
@@ -32,6 +35,10 @@ export const isContentGuideProgram = isGuideProgramType<ContentGuideProgram>([
 
 export const isFlexGuideProgram = isGuideProgramType<FlexGuideProgram>([
   'flex',
+]);
+
+export const isSegmentedGuideProgram = isGuideProgramType<SegmentedGuideProgram>([
+  'segmented',
 ]);
 
 export type ChannelLineup = z.infer<typeof ChannelLineupSchema>;
