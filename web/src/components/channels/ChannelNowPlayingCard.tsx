@@ -66,18 +66,24 @@ export const ChannelNowPlayingCard = ({ channelId }: Props) => {
     return match(firstProgram)
       .returnType<ProgramDetails | null>()
       .with(P.nullish, () => null)
-      .with({ type: 'content', subtype: P.union('episode', 'track') }, (c) => ({
-        title: c.title,
-        showTitle: lineup.programs[c.id]?.grandparent?.title,
-        seasonAndEpisode:
-          !isUndefined(lineup.programs[c.id]?.index) &&
-          !isUndefined(lineup.programs[c.id]?.parent?.index)
-            ? {
-                season: lineup.programs[c.id].parent!.index!,
-                episode: lineup.programs[c.id].index!,
-              }
-            : undefined,
-      }))
+      .with({ type: 'content', subtype: P.union('episode', 'track') }, (c) => {
+        const program = lineup.programs[c.id];
+        if (!program || program.type !== 'content') {
+          return { title: c.title };
+        }
+        return {
+          title: c.title,
+          showTitle: program.grandparent?.title,
+          seasonAndEpisode:
+            !isUndefined(program.index) &&
+            !isUndefined(program.parent?.index)
+              ? {
+                  season: program.parent.index,
+                  episode: program.index,
+                }
+              : undefined,
+        };
+      })
       .with({ type: 'content' }, (c) => ({ title: c.title }))
       .with({ type: 'custom' }, (c) => ({
         title: c.program?.title ?? `Custom`,
@@ -85,6 +91,9 @@ export const ChannelNowPlayingCard = ({ channelId }: Props) => {
       .with({ type: 'flex' }, () => ({ title: 'Flex' }))
       .with({ type: 'redirect' }, (c) => ({
         title: `Redirect to ${c.channelNumber}`,
+      }))
+      .with({ type: 'segmented' }, (c) => ({ 
+        title: c.title 
       }))
       .exhaustive();
   }, [firstProgram, lineup.programs]);
@@ -99,7 +108,7 @@ export const ChannelNowPlayingCard = ({ channelId }: Props) => {
     }
 
     const program = lineup.programs[firstProgram.id];
-    if (!program) {
+    if (!program || program.type !== 'content') {
       return;
     }
 

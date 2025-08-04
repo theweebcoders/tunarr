@@ -129,6 +129,8 @@ export function channelProgramUniqueId(program: ChannelProgram): string {
       return `filler.${program.fillerListId}`;
     case 'flex':
       return 'flex';
+    case 'segmented':
+      return `segmented.${program.externalKey}`;
   }
 }
 

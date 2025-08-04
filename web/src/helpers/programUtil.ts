@@ -39,5 +39,6 @@ export function getProgramGroupingKey(program: ChannelProgram) {
     .with({ type: 'redirect' }, (program) => `redirect.${program.channel}`)
     .with({ type: 'flex' }, () => 'flex')
     .with({ type: 'filler' }, (program) => `filler.${program.fillerListId}`)
+    .with({ type: 'segmented' }, (program) => `segmented.${program.externalKey}`)
     .exhaustive();
 }

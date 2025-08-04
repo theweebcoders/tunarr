@@ -61,6 +61,7 @@ const formattedTitle = forProgramType({
     p.program?.grandparent?.title ?? p.program?.title ?? 'Filler Program',
   redirect: (p) => `Redirect to Channel ${p.channel}`,
   flex: 'Flex',
+  segmented: (p) => p.title,
 });
 
 type ThumbLoadState = 'loading' | 'error' | 'success';
@@ -90,6 +91,8 @@ export default function ProgramDetailsDialog({
       forProgramType({
         custom: (p) => p.program?.rating ?? '',
         content: (p) => p.rating,
+        segmented: () => '',
+        default: '',
       }),
     [],
   );
@@ -99,6 +102,7 @@ export default function ProgramDetailsDialog({
       forProgramType({
         custom: (p) => p.program?.summary ?? '',
         content: (p) => p.summary,
+        segmented: () => '',
         default: '',
       }),
     [],
@@ -109,6 +113,7 @@ export default function ProgramDetailsDialog({
       forProgramType({
         custom: (p) => p.program?.title ?? '',
         content: (p) => p.title,
+        segmented: (p) => p.title,
         default: '',
       }),
     [],
@@ -118,6 +123,14 @@ export default function ProgramDetailsDialog({
     () =>
       forProgramType({
         content: (program) => (
+          <Chip
+            key="duration"
+            color="primary"
+            label={prettyItemDuration(program.duration)}
+            sx={{ mt: 1, mr: 1 }}
+          />
+        ),
+        segmented: (program) => (
           <Chip
             key="duration"
             color="primary"
@@ -261,6 +274,8 @@ export default function ProgramDetailsDialog({
           return `${settings.backendUri}/api/metadata/external?id=${key}&mode=proxy&asset=thumb`;
         },
         custom: (p) => (p.program ? thumbnailImage(p.program) : null),
+        segmented: () => null,
+        default: null,
       }),
     [settings.backendUri],
   );
@@ -272,6 +287,8 @@ export default function ProgramDetailsDialog({
           p.id && p.persisted
             ? `${settings.backendUri}/api/programs/${p.id}/external-link`
             : null,
+        segmented: () => null,
+        default: null,
       }),
     [settings.backendUri],
   );

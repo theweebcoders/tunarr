@@ -10,6 +10,7 @@ import {
   type FlexProgram,
   type Program,
   type RedirectProgram,
+  type SegmentedProgram,
 } from '@tunarr/types';
 import { type ApiOf } from '@tunarr/zodios-core';
 import {
@@ -101,6 +102,7 @@ export type UIContentProgram = UIChannelProgram<ContentProgram>;
 export type UIFlexProgram = UIChannelProgram<FlexProgram>;
 export type UICustomProgram = UIChannelProgram<CustomProgram>;
 export type UIRedirectProgram = UIChannelProgram<RedirectProgram>;
+export type UISegmentedProgram = UIChannelProgram<SegmentedProgram>;
 
 // It sucks that we have to repeat these everywhere...  but I couldn't figure out
 // generic way to do it
@@ -117,6 +119,10 @@ export const isUICustomProgram = (p: UIChannelProgram): p is UICustomProgram =>
 export const isUIRedirectProgram = (
   p: UIChannelProgram,
 ): p is UIRedirectProgram => p.type === 'redirect';
+
+export const isUISegmentedProgram = (
+  p: UIChannelProgram,
+): p is UISegmentedProgram => p.type === 'segmented';
 
 export type UIFillerListProgram = (ContentProgram | CustomProgram) & UIIndex;
 export type UICustomShowProgram = (ContentProgram | CustomProgram) & UIIndex;

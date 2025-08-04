@@ -53,6 +53,7 @@ export const useProgramTitleFormatter = () => {
           { type: 'filler' },
           (p) => `${fillerLists[p.fillerListId]?.name ?? 'Filler List'} - `,
         )
+        .with({ type: 'segmented' }, (p) => p.title)
         .with({ type: 'content' }, (p) => {
           switch (p.subtype) {
             case 'movie':

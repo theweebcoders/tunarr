@@ -33,6 +33,7 @@ export const ChannelSummaryQuickStats = ({ channelId }: Props) => {
           match(p)
             .with({ type: 'content' }, (p) => p.id)
             .with({ type: 'custom' }, (p) => p.program?.id)
+            .with({ type: 'segmented' }, (p) => p.id || p.externalKey)
             .otherwise(() => null),
         ),
       ).length,

@@ -9,5 +9,6 @@ export function programTitle(program: ChannelProgram): string {
     .with({ type: 'redirect' }, (p) => `Redirect to Channel ${p.channel}`)
     .with({ type: 'flex' }, () => 'Flex')
     .with({ type: 'filler' }, (f) => f.program?.title ?? 'Filler Program')
+    .with({ type: 'segmented' }, (p) => p.title)
     .exhaustive();
 }

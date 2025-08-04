@@ -143,6 +143,7 @@ export function ChannelProgrammingConfig() {
           case 'content':
           case 'redirect':
           case 'flex':
+          case 'segmented':
           default: {
             const index = findIndex(
               uniquePrograms,

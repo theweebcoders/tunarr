@@ -269,6 +269,7 @@ export function TvGuide({ channelId, start, end, showStealth = true }: Props) {
         .with({ type: 'custom' }, () => 'Custom Program')
         .with({ type: 'redirect' }, (p) => `Redirect to Channel ${p.channel}`)
         .with({ type: 'flex' }, (p) => p.title ?? flexTitle)
+        .with({ type: 'segmented' }, (p) => p.title)
         .exhaustive();
 
       const episodeTitle = match(program)

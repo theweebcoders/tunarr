@@ -53,10 +53,12 @@ import {
   type UIChannelProgram,
   type UIFlexProgram,
   type UIRedirectProgram,
+  type UISegmentedProgram,
 } from '../../types/index.ts';
 import ProgramDetailsDialog from '../ProgramDetailsDialog.tsx';
 import AddFlexModal from '../programming_controls/AddFlexModal.tsx';
 import AddRedirectModal from '../programming_controls/AddRedirectModal.tsx';
+import AddSegmentedProgramModal from '../programming_controls/AddSegmentedProgramModal.tsx';
 
 export type CommonProps = {
   moveProgram?: (originalIndex: number, toIndex: number) => void;
@@ -296,8 +298,8 @@ const ProgramListItem = ({
                 <Box sx={{ mr: 1, width: 24, height: '100%' }} />
               )
             ) : null}
-            {(!smallViewport && enableEdit && program.type === 'flex') ||
-            program.type === 'redirect' ? (
+            {(!smallViewport && enableEdit && (program.type === 'flex' ||
+            program.type === 'redirect' || program.type === 'segmented')) ? (
               <IconButton
                 onClick={() => onEditClicked({ ...program, index })}
                 edge="end"
@@ -384,7 +386,7 @@ export default function ChannelLineupList(props: Props) {
   >();
   const [, setStartStop] = useState<GuideTime>({});
   const [editProgram, setEditProgram] = useState<
-    ((UIFlexProgram | UIRedirectProgram) & { index: number }) | undefined
+    ((UIFlexProgram | UIRedirectProgram | UISegmentedProgram) & { index: number }) | undefined
   >();
 
   const maxDuration = useMemo(
@@ -414,7 +416,7 @@ export default function ChannelLineupList(props: Props) {
   );
 
   const openEditDialog = useCallback(
-    (program: (UIFlexProgram | UIRedirectProgram) & { index: number }) => {
+    (program: (UIFlexProgram | UIRedirectProgram | UISegmentedProgram) & { index: number }) => {
       setEditProgram(program);
     },
     [],
@@ -538,6 +540,13 @@ export default function ChannelLineupList(props: Props) {
           onClose={() => setEditProgram(undefined)}
           initialProgram={
             editProgram?.type === 'redirect' ? editProgram : undefined
+          }
+        />
+        <AddSegmentedProgramModal
+          open={!isUndefined(editProgram) && editProgram.type === 'segmented'}
+          onClose={() => setEditProgram(undefined)}
+          initialProgram={
+            editProgram?.type === 'segmented' ? editProgram : undefined
           }
         />
       </Box>

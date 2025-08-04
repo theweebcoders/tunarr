@@ -1,7 +1,7 @@
 import type { TabProps } from '@mui/material';
 import { Tab, Tabs, Typography } from '@mui/material';
 import { seq } from '@tunarr/shared/util';
-import type { ContentProgram, ContentProgramParent } from '@tunarr/types';
+import type { ContentProgram, ContentProgramParent, SegmentedProgram } from '@tunarr/types';
 import {
   ContentProgramTypeSchema,
   type ContentProgramType,
@@ -19,15 +19,16 @@ type Props = {
 type ProgramTabProps = TabProps & {
   selected: boolean;
   programCount: number;
-  programType: ContentProgramType;
+  programType: ContentProgramType | 'segmented';
 };
 
-const ProgramTypeToLabel: Record<ContentProgramType, string> = {
+const ProgramTypeToLabel: Record<ContentProgramType | 'segmented', string> = {
   episode: 'Shows',
   movie: 'Movies',
   music_video: 'Music Videos',
   other_video: 'Other Videos',
   track: 'Artists',
+  segmented: 'Segmented',
 };
 
 const ProgramTypeToGridType: Record<
@@ -89,6 +90,46 @@ const ProgramTypeTab = ({
   );
 };
 
+// Component to display segmented programs
+const SegmentedProgramsList = ({ programs }: { programs: SegmentedProgram[] }) => {
+  return (
+    <div style={{ padding: 16 }}>
+      <Typography variant="h6" gutterBottom>
+        Segmented Programs ({programs.length})
+      </Typography>
+      {programs.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">
+          No segmented programs in this channel.
+        </Typography>
+      ) : (
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+          {programs.map((program) => (
+            <div
+              key={program.externalKey}
+              style={{
+                border: '1px solid #e0e0e0',
+                borderRadius: 4,
+                padding: 12,
+                backgroundColor: '#008080',
+              }}
+            >
+              <Typography variant="subtitle1" fontWeight="bold">
+                {program.title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {program.segments.length} segment{program.segments.length !== 1 ? 's' : ''}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Duration: {Math.floor(program.duration / 60000)} minutes
+              </Typography>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const ChannelPrograms = ({ channelId }: Props) => {
   const {
     data: {
@@ -96,21 +137,33 @@ export const ChannelPrograms = ({ channelId }: Props) => {
     },
   } = useChannelAndProgramming(channelId);
 
+  const { contentPrograms, segmentedPrograms } = useMemo(() => {
+    const content: ContentProgram[] = [];
+    const segmented: SegmentedProgram[] = [];
+    
+    lineup.forEach((p) => {
+      if (p.type === 'content' && p.id && programs[p.id]) {
+        const program = programs[p.id];
+        if (program.type === 'content') {
+          content.push(program);
+        }
+      } else if (p.type === 'custom' && p.id && programs[p.id]) {
+        const program = programs[p.id];
+        if (program && program.type === 'content') {
+          content.push(program);
+        }
+      } else if (p.type === 'segmented') {
+        segmented.push(p);
+      }
+    });
+    
+    return { contentPrograms: content, segmentedPrograms: segmented };
+  }, [lineup, programs]);
+
   const programsByType = useMemo(
-    () =>
-      groupBy(
-        seq.collect(lineup, (p) => {
-          if (p.type === 'content' && p.id) {
-            return programs[p.id];
-          } else if (p.type === 'custom') {
-            return programs[p.id];
-          }
-          return;
-        }),
-        (p) => p.subtype,
-      ),
-    [lineup, programs],
-  ) as Record<ContentProgramType, ContentProgram[]>;
+    () => groupBy(contentPrograms, (p) => p.subtype) as Record<ContentProgramType, ContentProgram[]>,
+    [contentPrograms]
+  );
 
   // TODO: Do this in the database
   const [epsByShow] = useMemo(() => {
@@ -150,6 +203,12 @@ export const ChannelPrograms = ({ channelId }: Props) => {
   }, [programsByType]);
 
   const [tab, setTab] = useState(() => {
+    // Check segmented programs first
+    if (segmentedPrograms.length > 0) {
+      return 5; // Segmented tab index
+    }
+    
+    // Then check content programs
     for (const [key, programs] of Object.entries(programsByType)) {
       if (programs.length > 0) {
         switch (key as ContentProgramType) {
@@ -177,6 +236,7 @@ export const ChannelPrograms = ({ channelId }: Props) => {
           <ProgramTypeTab
             key={v}
             value={idx}
+            selected={tab === idx}
             programCount={
               v === 'episode'
                 ? keys(epsByShow).length
@@ -185,18 +245,27 @@ export const ChannelPrograms = ({ channelId }: Props) => {
                   : (programsByType[v]?.length ?? 0)
             }
             programType={v}
-            selected={tab === idx}
           />
         ))}
+        <ProgramTypeTab
+          key="segmented"
+          value={5}
+          selected={tab === 5}
+          programCount={segmentedPrograms.length}
+          programType="segmented"
+        />
       </Tabs>
-      {Object.values(ContentProgramTypeSchema.enum).map((v, idx) => (
-        <TabPanel index={idx} value={tab} key={v}>
+      {Object.values(ContentProgramTypeSchema.enum).map((programType, idx) => (
+        <TabPanel key={programType} value={tab} index={idx}>
           <ChannelProgramGrid
             channelId={channelId}
-            programType={ProgramTypeToGridType[v]}
+            programType={ProgramTypeToGridType[programType]}
           />
         </TabPanel>
       ))}
+      <TabPanel value={tab} index={5}>
+        <SegmentedProgramsList programs={segmentedPrograms} />
+      </TabPanel>
     </>
   );
 };

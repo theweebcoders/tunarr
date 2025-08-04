@@ -4,6 +4,7 @@ import {
   FreeBreakfast as BreaksIcon,
   Expand as FlexIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
+  MovieFilter,
   Expand as PaddingIcon,
   Directions as RedirectIcon,
   Nightlight as RestrictHoursIcon,
@@ -19,6 +20,7 @@ import AddFlexModal from '../programming_controls/AddFlexModal';
 import AddPaddingModal from '../programming_controls/AddPaddingModal';
 import AddRedirectModal from '../programming_controls/AddRedirectModal';
 import AddRestrictHoursModal from '../programming_controls/AddRestrictHoursModal';
+import AddSegmentedProgramModal from '../programming_controls/AddSegmentedProgramModal';
 
 export default function AddProgrammingButton() {
   const [addRedirectModalOpen, setAddRedirectModalOpen] = useState(false);
@@ -27,6 +29,7 @@ export default function AddProgrammingButton() {
   const [addRestrictHoursModalOpen, setAddRestrictHoursModalOpen] =
     useState(false);
   const [addBreaksModalOpen, setAddBreaksModalOpen] = useState(false);
+  const [addSegmentedProgramModalOpen, setAddSegmentedProgramModalOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [lastSelection, setLastSelection] = useState<number>(0);
   const navigate = useNavigate();
@@ -60,6 +63,14 @@ export default function AddProgrammingButton() {
       callback: () => setAddRedirectModalOpen(true),
       description:
         'Adds a channel redirect. During this period of time, the channel will redirect to another channel.',
+      divider: false,
+    },
+    {
+      icon: <MovieFilter />,
+      name: 'Add Segmented Program',
+      callback: () => setAddSegmentedProgramModalOpen(true),
+      description:
+        'Create a program with multiple segments like TV episodes with commercial breaks.',
       divider: false,
     },
     {
@@ -124,6 +135,10 @@ export default function AddProgrammingButton() {
       <AddBreaksModal
         open={addBreaksModalOpen}
         onClose={() => setAddBreaksModalOpen(false)}
+      />
+      <AddSegmentedProgramModal
+        open={addSegmentedProgramModalOpen}
+        onClose={() => setAddSegmentedProgramModalOpen(false)}
       />
 
       <ButtonGroup aria-label="Add Programming Button Group">
